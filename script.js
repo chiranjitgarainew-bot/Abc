@@ -11,11 +11,40 @@ const Role = {
 };
 
 // --- Service: Gemini API ---
-const apiKey = window.process?.env?.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+// Access process.env safely from window if global process is not available in module scope
+const getApiKey = () => {
+  if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  if (window.process && window.process.env && window.process.env.API_KEY) {
+    return window.process.env.API_KEY;
+  }
+  return '';
+};
+
+// Initialize AI Client
+let ai;
+try {
+    const key = getApiKey();
+    // Only initialize if we have a key (or let it fail gracefully later)
+    ai = new GoogleGenAI({ apiKey: key });
+} catch (e) {
+    console.error("Failed to initialize GoogleGenAI client:", e);
+}
 
 const streamGeminiResponse = async (prompt, images, history, config) => {
+  const apiKey = getApiKey();
+  if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+      throw new Error("API Key is missing. Please configure process.env.API_KEY.");
+  }
+  
+  if (!ai) {
+      ai = new GoogleGenAI({ apiKey });
+  }
+
   // Select model based on content
+  // gemini-2.5-flash-image for images
+  // gemini-3-flash-preview for text
   const modelName = images.length > 0 ? 'gemini-2.5-flash-image' : 'gemini-3-flash-preview';
 
   const parts = [];
@@ -37,7 +66,7 @@ const streamGeminiResponse = async (prompt, images, history, config) => {
 
   try {
     if (images.length > 0) {
-      // Single turn vision request
+      // Single turn vision request (GenerateContent)
       const responseStream = await ai.models.generateContentStream({
         model: modelName,
         contents: { parts },
@@ -377,6 +406,13 @@ const App = () => {
   };
 
   const handleSend = async (text, images) => {
+    // Check API Key first
+    const apiKey = getApiKey();
+    if (!apiKey || apiKey === 'YOUR_API_KEY_HERE') {
+      alert("API Key is missing! Please check the code in index.html and set your API_KEY.");
+      return;
+    }
+
     // 1. Add User Message
     const userMsg = {
       id: Date.now().toString(),
@@ -421,9 +457,16 @@ const App = () => {
 
     } catch (error) {
       console.error("Streaming error:", error);
+      let errorText = "Sorry, something went wrong. ";
+      if (error.message.includes("API Key")) {
+        errorText = "Error: API Key is invalid or missing.";
+      } else {
+        errorText += "Please check the console for details.";
+      }
+
       setMessages(prev => prev.map(msg => 
         msg.id === botMsgId 
-          ? { ...msg, text: "Sorry, something went wrong. Please try again. Make sure your API Key is set.", isError: true }
+          ? { ...msg, text: errorText, isError: true }
           : msg
       ));
     } finally {
