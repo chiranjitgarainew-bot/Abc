@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Ultra Chat",
+  "description": "A premium React-based chat interface for Gemini models, supporting multimodal inputs (text & images), markdown rendering, and real-time streaming responses.",
+  "requestFramePermissions": []
+}
